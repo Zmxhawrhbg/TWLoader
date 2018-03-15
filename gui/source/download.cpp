@@ -25,10 +25,15 @@ using std::vector;
 #include "pp2d/pp2d.h"
 #include "graphic.h"
 
+#include "httpc-curl/httpc.h"
+
 #include "json/json.h"
 
-const char* JSON_URL = "https://raw.githubusercontent.com/Jolty95/TWLoader-update/master/update.json";
-const char* JSON_NIGHTLIES_URL = "https://raw.githubusercontent.com/Jolty95/TWLoader-update/master/beta/updatenightlies.json";
+
+HTTPC httpc;
+
+const char* JSON_URL = "http://cdn.kaeru.world/TWLoader-update/update.json";
+const char* JSON_NIGHTLIES_URL = "http://cdn.kaeru.world/TWLoader-update/master/beta/updatenightlies.json";
 bool updateGUI = false;
 bool updateNAND = false;
 bool updateNAND_part2 = false;
@@ -93,7 +98,7 @@ int downloadFile(const char* url, const char* file, MediaType mediaType) {
 		return -1;
 
 	fsInit();
-	httpcInit(0x1000);
+	httpc.Init(0x1000);
 	httpcContext context;
 	u32 statuscode = 0;
 	HTTPC_RequestMethod useMethod = HTTPC_METHOD_GET;
@@ -101,22 +106,21 @@ int downloadFile(const char* url, const char* file, MediaType mediaType) {
 	do {
 		if (statuscode >= 301 && statuscode <= 308) {
 			char newurl[4096];
-			httpcGetResponseHeader(&context, (char*)"Location", &newurl[0], 4096);
+			httpc.GetResponseHeader(&context, (char*)"Location", &newurl[0], 4096);
 			url = &newurl[0];
 
-			httpcCloseContext(&context);
+			httpc.CloseContext(&context);
 		}
 
-		Result ret = httpcOpenContext(&context, useMethod, (char*)url, 0);
-		httpcSetSSLOpt(&context, SSLCOPT_DisableVerify);
+		Result ret = httpc.OpenContext(&context, useMethod, (char*)url, 0);
 
 		if (ret==0) {
-			if(R_SUCCEEDED(httpcBeginRequest(&context))){
+			if(R_SUCCEEDED(httpc.BeginRequest(&context))){
 				u32 contentsize=0;
-				if(R_FAILED(httpcGetResponseStatusCode(&context, &statuscode))){
+				if(R_FAILED(httpc.GetResponseStatusCode(&context, &statuscode))){
 					if (logEnabled) LogFM("downloadFile.error", "An error has ocurred trying to get response status code.");
-					httpcCloseContext(&context);
-					httpcExit();
+					httpc.CloseContext(&context);
+					httpc.Exit();
 					fsExit();
 					return -1;
 				}
@@ -128,10 +132,10 @@ int downloadFile(const char* url, const char* file, MediaType mediaType) {
 					FS_Path filePath=fsMakePath(PATH_ASCII, file);
 					FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), filePath, FS_OPEN_CREATE | FS_OPEN_WRITE, 0x00000000);
 
-					if(R_FAILED(httpcGetDownloadSizeState(&context, NULL, &contentsize))){
+					if(R_FAILED(httpc.GetDownloadSizeState(&context, NULL, &contentsize))){
 						if (logEnabled) LogFM("downloadFile.error", "An error has ocurred trying to get download size.");
-						httpcCloseContext(&context);
-						httpcExit();
+						httpc.CloseContext(&context);
+						httpc.Exit();
 						fsExit();
 						return -1;
 					}
@@ -139,12 +143,12 @@ int downloadFile(const char* url, const char* file, MediaType mediaType) {
 					memset(buf, 0, contentsize);
 
 					do {
-						if(R_FAILED(ret = httpcDownloadData(&context, buf, contentsize, &readSize))){
+						if(R_FAILED(ret = httpc.DownloadData(&context, buf, contentsize, &readSize))){
 							// In case there is an error
 							if (logEnabled) LogFM("downloadFile.error", "An error has ocurred while downloading data.");
 							free(buf);
-							httpcCloseContext(&context);
-							httpcExit();
+							httpc.CloseContext(&context);
+							httpc.Exit();
 							fsExit();
 							return -1;
 						}
@@ -180,34 +184,34 @@ int downloadFile(const char* url, const char* file, MediaType mediaType) {
 				}  else if ( ((statuscode >= 400) && (statuscode <= 451)) || ((statuscode >= 500) && (statuscode <= 512)) ) {
 					// 4XX client error.
 					// 5XX server error.
-					httpcCloseContext(&context);
+					httpc.CloseContext(&context);
 					char errorcode_s[4];
 					snprintf(errorcode_s, sizeof(errorcode_s), "%lu", statuscode);
 					if (logEnabled) LogFMA("downloadFile.error", "Error accessing resource.", errorcode_s);
-					httpcExit();
+					httpc.Exit();
 					fsExit();
 					return -1;
 				}
 			}else{
 				// There was an error begining the request
 				if (logEnabled) LogFM("downloadFile.error", "An error has ocurred trying to request server.");
-				httpcCloseContext(&context);
-				httpcExit();
+				httpc.CloseContext(&context);
+				httpc.Exit();
 				fsExit();
 				return -1;
 			}
 		}else{
 			// There was a problem opening HTTP context
 			if (logEnabled) LogFMA("downloadFile.error", "An error has ocurred trying to open HTTP context.", url);
-			httpcCloseContext(&context);
-			httpcExit();
+			httpc.CloseContext(&context);
+			httpc.Exit();
 			fsExit();
 			return -1;
 		}
 	} while ((statuscode >= 301 && statuscode <= 303) || (statuscode >= 307 && statuscode <= 308));
-	httpcCloseContext(&context);
+	httpc.CloseContext(&context);
 
-	httpcExit();
+	httpc.Exit();
 	fsExit();
 	return 0;
 }
@@ -217,7 +221,7 @@ Result http_read_internal(httpcContext* context, u32* bytesRead, void* buffer, u
         return -1;
     }
 
-    Result res = httpcDownloadData(context, (u8*) buffer, size, bytesRead);
+    Result res = httpc.DownloadData(context, (u8*) buffer, size, bytesRead);
     return res != (int) HTTPC_RESULTCODE_DOWNLOADPENDING ? res : 0;
 }
 
@@ -272,28 +276,24 @@ int checkUpdate(void) {
 	u32 responseCode = 0;
 	httpcContext context;	
 	
-	httpcInit(0);
-	if(R_FAILED(httpcOpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
+	httpc.Init(0);
+	if(R_FAILED(httpc.OpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error opening context.");
 		return -1;
 	}
-	if(R_FAILED(httpcAddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
+	if(R_FAILED(httpc.AddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error requesting header field.");
 		return -1;
 	}
-	if(R_FAILED(httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) {
-		if (logEnabled)	LogFM("checkUpdate", "Error setting SSL certificate.");
-		return -1;
-	}
-	if(R_FAILED(httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
+	if(R_FAILED(httpc.SetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error while keeping alive the conection.");
 		return -1;
 	}
-	if(R_FAILED(httpcBeginRequest(&context))) {
+	if(R_FAILED(httpc.BeginRequest(&context))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error begining the request.");
 		return -1;
 	}
-	if(R_FAILED(httpcGetResponseStatusCode(&context, &responseCode))) {
+	if(R_FAILED(httpc.GetResponseStatusCode(&context, &responseCode))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error getting response code.");
 		return -1;
 	}
@@ -303,7 +303,7 @@ int checkUpdate(void) {
 	}
 	
 	u32 size = 0;
-	httpcGetDownloadSizeState(&context, NULL, &size);	
+	httpc.GetDownloadSizeState(&context, NULL, &size);	
 	char* jsonText = (char*) calloc(sizeof(char), size);
 	if (logEnabled) LogFM("checkUpdate", "Downloading JSON info.");
 	if(jsonText != NULL) {
@@ -357,28 +357,25 @@ int checkUpdate(void) {
 					u32 responseCodeNightly = 0;
 					httpcContext contextNightly;	
 					
-					httpcInit(0);
-					if(R_FAILED(httpcOpenContext(&contextNightly, HTTPC_METHOD_GET, JSON_NIGHTLIES_URL, 0))) {
+					httpc.Init(0);
+					if(R_FAILED(httpc.OpenContext(&contextNightly, HTTPC_METHOD_GET, JSON_NIGHTLIES_URL, 0))) {
 						if (logEnabled)	LogFM("checkUpdate", "Error opening context (nightly).");
 						return -1;
 					}
-					if(R_FAILED(httpcAddRequestHeaderField(&contextNightly, "User-Agent", "TWLoader"))) {
+					if(R_FAILED(httpc.AddRequestHeaderField(&contextNightly, "User-Agent", "TWLoader"))) {
 						if (logEnabled)	LogFM("checkUpdate", "Error requesting header field (nightly).");
 						return -1;
 					}
-					if(R_FAILED(httpcSetSSLOpt(&contextNightly, SSLCOPT_DisableVerify))) {
-						if (logEnabled)	LogFM("checkUpdate", "Error setting SSL certificate (nightly).");
-						return -1;
-					}
-					if(R_FAILED(httpcSetKeepAlive(&contextNightly, HTTPC_KEEPALIVE_ENABLED))) {
+
+					if(R_FAILED(httpc.SetKeepAlive(&contextNightly, HTTPC_KEEPALIVE_ENABLED))) {
 						if (logEnabled)	LogFM("checkUpdate", "Error while keeping alive the conection (nightly).");
 						return -1;
 					}
-					if(R_FAILED(httpcBeginRequest(&contextNightly))) {
+					if(R_FAILED(httpc.BeginRequest(&contextNightly))) {
 						if (logEnabled)	LogFM("checkUpdate", "Error begining the request (nightly).");
 						return -1;
 					}
-					if(R_FAILED(httpcGetResponseStatusCode(&contextNightly, &responseCodeNightly))) {
+					if(R_FAILED(httpc.GetResponseStatusCode(&contextNightly, &responseCodeNightly))) {
 						if (logEnabled)	LogFM("checkUpdate", "Error getting response code (nightly).");
 						return -1;
 					}
@@ -388,7 +385,7 @@ int checkUpdate(void) {
 					}
 
 					u32 sizeNightly = 0;
-					httpcGetDownloadSizeState(&contextNightly, NULL, &sizeNightly);	
+					httpc.GetDownloadSizeState(&contextNightly, NULL, &sizeNightly);	
 					char* jsonTextNightly = (char*) calloc(sizeof(char), sizeNightly);
 					if (logEnabled) LogFM("checkUpdate", "Downloading JSON info for Nightly.");
 					if(jsonTextNightly != NULL) {
@@ -550,7 +547,7 @@ int checkUpdate(void) {
 					if (logEnabled)	LogFM("checkUpdate", "TWLoader is up-to-date!");
 
 					free(jsonText);
-					httpcCloseContext(&context);
+					httpc.CloseContext(&context);
 
 					bool checkanswer = true;
 
@@ -683,12 +680,12 @@ int checkUpdate(void) {
 	
 	if (updateGUI) {		
 		free(jsonText);
-		httpcCloseContext(&context);
+		httpc.CloseContext(&context);
 		return 0;
 	}
 	
 	free(jsonText);
-	httpcCloseContext(&context);
+	httpc.CloseContext(&context);
 	return -1;
 }
 
@@ -1058,28 +1055,24 @@ int DownloadMissingFiles(void) {
 	u32 responseCode = 0;
 	httpcContext context;	
 	
-	httpcInit(0);
-	if(R_FAILED(httpcOpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
+	httpc.Init(0);
+	if(R_FAILED(httpc.OpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
 		if (logEnabled)	LogFM("DownloadMissingFiles", "Error opening context.");
 		return -1;
 	}
-	if(R_FAILED(httpcAddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
+	if(R_FAILED(httpc.AddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
 		if (logEnabled)	LogFM("DownloadMissingFiles", "Error requesting header field.");
 		return -1;
 	}
-	if(R_FAILED(httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) {
-		if (logEnabled)	LogFM("DownloadMissingFiles", "Error setting SSL certificate.");
-		return -1;
-	}
-	if(R_FAILED(httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
+	if(R_FAILED(httpc.SetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
 		if (logEnabled)	LogFM("DownloadMissingFiles", "Error while keeping alive the conection.");
 		return -1;
 	}
-	if(R_FAILED(httpcBeginRequest(&context))) {
+	if(R_FAILED(httpc.BeginRequest(&context))) {
 		if (logEnabled)	LogFM("DownloadMissingFiles", "Error begining the request.");
 		return -1;
 	}
-	if(R_FAILED(httpcGetResponseStatusCode(&context, &responseCode))) {
+	if(R_FAILED(httpc.GetResponseStatusCode(&context, &responseCode))) {
 		if (logEnabled)	LogFM("DownloadMissingFiles", "Error getting response code.");
 		return -1;
 	}
@@ -1089,7 +1082,7 @@ int DownloadMissingFiles(void) {
 	}
 	
 	u32 size = 0;
-	httpcGetDownloadSizeState(&context, NULL, &size);	
+	httpc.GetDownloadSizeState(&context, NULL, &size);	
 	char* jsonText = (char*) calloc(sizeof(char), size);
 	if (logEnabled) LogFM("DownloadMissingFiles", "Downloading JSON info.");
 	if(jsonText != NULL) {
@@ -1926,28 +1919,24 @@ int downloadBootstrapVersion(bool type, bool sdk5)
 	httpcContext context;	
 	int res = -1;	
 	
-	httpcInit(0);
-	if(R_FAILED(httpcOpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
+	httpc.Init(0);
+	if(R_FAILED(httpc.OpenContext(&context, HTTPC_METHOD_GET, JSON_URL, 0))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error opening context.");
 		return -1;
 	}
-	if(R_FAILED(httpcAddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
+	if(R_FAILED(httpc.AddRequestHeaderField(&context, "User-Agent", "TWLoader"))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error requesting header field.");
 		return -1;
 	}
-	if(R_FAILED(httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) {
-		if (logEnabled)	LogFM("checkUpdate", "Error setting SSL certificate.");
-		return -1;
-	}
-	if(R_FAILED(httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
+	if(R_FAILED(httpc.SetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error while keeping alive the conection.");
 		return -1;
 	}
-	if(R_FAILED(httpcBeginRequest(&context))) {
+	if(R_FAILED(httpc.BeginRequest(&context))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error begining the request.");
 		return -1;
 	}
-	if(R_FAILED(httpcGetResponseStatusCode(&context, &responseCode))) {
+	if(R_FAILED(httpc.GetResponseStatusCode(&context, &responseCode))) {
 		if (logEnabled)	LogFM("checkUpdate", "Error getting response code.");
 		return -1;
 	}
@@ -1957,7 +1946,7 @@ int downloadBootstrapVersion(bool type, bool sdk5)
 	}
 	
 	u32 size = 0;
-	httpcGetDownloadSizeState(&context, NULL, &size);	
+	httpc.GetDownloadSizeState(&context, NULL, &size);	
 	char* jsonText = (char*) calloc(sizeof(char), size);
 	if (logEnabled) LogFM("Bootstrap", "Downloading JSON info.");
 	if(jsonText != NULL) {
@@ -2008,7 +1997,7 @@ int downloadBootstrapVersion(bool type, bool sdk5)
 	}
 	
 	free(jsonText);
-	httpcCloseContext(&context);		
+	httpc.CloseContext(&context);		
 		
 	if (sdk5){
 		if (type){
