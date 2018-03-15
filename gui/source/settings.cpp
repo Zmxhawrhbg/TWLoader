@@ -26,11 +26,15 @@ enum SubScreenMode {
 	SUBSCREEN_MODE_SUB_THEME = 5,			// Sub-theme select
 	SUBSCREEN_MODE_CHANGE_ROM_PATH = 6,		// Sub-menu with rom path location
 	SUBSCREEN_MODE_TWLNAND_NOT_FOUND = 7,	// TWLNAND side not found message
+	SUBSCREEN_MODE_FIRST_TIME = 8,			// First-time screen
 };
 static SubScreenMode subscreenmode = SUBSCREEN_MODE_FRONTEND;
 
 /** Settings **/
 const char *twlnand_msg;
+const char *FirstTime_msg;
+
+static int FirstTime_selectedmsg = 0;
 
 const char* srldrsettingsinipath = "sdmc:/_nds/srloader/settings.ini";
 static CIniFile settingsini("sdmc:/_nds/twloader/settings.ini");
@@ -65,6 +69,9 @@ void settingsResetSubScreenMode(void)
 	} else {
 		subscreenmode = SUBSCREEN_MODE_FRONTEND;
 	}
+	if(!settings.ui.firstTimeMsgViewed) {
+		subscreenmode = SUBSCREEN_MODE_FIRST_TIME;
+	}
 	memset(cursor_pos, 0, sizeof(cursor_pos));
 }
 
@@ -87,20 +94,7 @@ void settingsLoadTextures(void)
 	pp2d_free_texture(boxtex);
 
 	/** Top screen **/
-	pp2d_load_texture_png(setvoltex[0], "romfs:/graphics/settings/volume0.png"); // Show no volume (settings)
-	pp2d_load_texture_png(setvoltex[1], "romfs:/graphics/settings/volume1.png"); // Volume low above 0 (settings)
-	pp2d_load_texture_png(setvoltex[2], "romfs:/graphics/settings/volume2.png"); // Volume medium (settings)
-	pp2d_load_texture_png(setvoltex[3], "romfs:/graphics/settings/volume3.png"); // Hight volume (settings)	
-	pp2d_load_texture_png(setvoltex[4], "romfs:/graphics/settings/volume4.png"); // 100% (settings)
-	pp2d_load_texture_png(setvoltex[5], "romfs:/graphics/settings/volume5.png"); // No DSP firm found (settings)
-
-	pp2d_load_texture_png(setbatterychrgtex, "romfs:/graphics/settings/battery_charging.png");
-	pp2d_load_texture_png(setbatterytex[0], "romfs:/graphics/settings/battery0.png");
-	pp2d_load_texture_png(setbatterytex[1], "romfs:/graphics/settings/battery1.png");
-	pp2d_load_texture_png(setbatterytex[2], "romfs:/graphics/settings/battery2.png");
-	pp2d_load_texture_png(setbatterytex[3], "romfs:/graphics/settings/battery3.png");
-	pp2d_load_texture_png(setbatterytex[4], "romfs:/graphics/settings/battery4.png");
-	pp2d_load_texture_png(setbatterytex[5], "romfs:/graphics/settings/battery5.png");
+	pp2d_load_texture_png(setbatterytex, "romfs:/graphics/settings/battery.png");
 
 	pp2d_load_texture_png(dsboottex, "romfs:/graphics/settings/dsboot.png"); // DS boot screen in settings
 	pp2d_load_texture_png(dsiboottex, "romfs:/graphics/settings/dsiboot.png"); // DSi boot screen in settings
@@ -160,6 +154,10 @@ void settingsLoadTextures(void)
 	}
 	pp2d_load_texture_png(disabledtex, "romfs:/graphics/settings/disable.png"); // Red circle with line
 
+	pp2d_load_texture_png(regularloadtex, "romfs:/graphics/settings/loading/regular.png");
+	pp2d_load_texture_png(pongloadtex, "romfs:/graphics/settings/loading/pong.png");
+	pp2d_load_texture_png(tictactoeloadtex, "romfs:/graphics/settings/loading/tictactoe.png");
+
 	/** Bottom screen **/
 	pp2d_load_texture_png(settingstex, "romfs:/graphics/settings/screen.png"); // Bottom of settings screen
 	pp2d_load_texture_png(whomeicontex, "romfs:/graphics/settings/whomeicon.png"); // HOME icon
@@ -177,14 +175,7 @@ void settingsUnloadTextures(void)
 		return;
 
 	/** Top screen **/
-	for (int i = 0; i < 6; i++) {
-		pp2d_free_texture(setvoltex[i]);
-	}
-	pp2d_free_texture(setbatterychrgtex);
-
-	for (int i = 0; i < 6; i++) {
-		pp2d_free_texture(setbatterytex[i]);
-	}
+	pp2d_free_texture(setbatterytex);
 
 	pp2d_free_texture(dsboottex);
 	pp2d_free_texture(dsiboottex);
@@ -194,6 +185,9 @@ void settingsUnloadTextures(void)
 	pp2d_free_texture(dsihstex);
 	pp2d_free_texture(invdshstex);
 	pp2d_free_texture(disabledtex);
+	pp2d_free_texture(regularloadtex);
+	pp2d_free_texture(pongloadtex);
+	pp2d_free_texture(tictactoeloadtex);
 
 	/** Bottom screen **/
 	pp2d_free_texture(settingstex);
@@ -220,7 +214,7 @@ void settingsDrawTopScreen(void)
 	if (!settings_tex_loaded) {
 		settingsLoadTextures();
 	}
-	update_battery_level(setbatterychrgtex, setbatterytex);
+	update_battery_level(setbatterytex);
 
 	// Draw twice; once per 3D framebuffer.
 	for (int topfb = GFX_LEFT; topfb <= GFX_RIGHT; topfb++) {
@@ -276,6 +270,20 @@ void settingsDrawTopScreen(void)
 				pp2d_draw_texture(disabledtex, offset3D[topfb].disabled+136, 20); // Draw disabled texture
 				pp2d_draw_texture(disabledtex, offset3D[topfb].disabled+136, 124); // Draw disabled texture	
 			}
+		} else if (subscreenmode == SUBSCREEN_MODE_NTR) {
+			pp2d_draw_wtext(offset3D[topfb].disabled+72, 30, 0.60, 0.60, BLUE, TR(STR_SETTINGS_XBUTTON_RELEASE));
+			pp2d_draw_wtext(offset3D[topfb].disabled+72, 46, 0.60, 0.60, GREEN, TR(STR_SETTINGS_YBUTTON_UNOFFICIAL));
+			if (settings.twl.loadingscreen == 3) {
+				pp2d_draw_texture(tictactoeloadtex, offset3D[topfb].boxart+120, 72); // Draw Tic-Tac-Toe loading screen
+			} else if (settings.twl.loadingscreen == 2) {
+				pp2d_draw_texture(pongloadtex, offset3D[topfb].boxart+120, 72); // Draw pong loading screen
+			} else if (settings.twl.loadingscreen == 1) {
+				pp2d_draw_texture(regularloadtex, offset3D[topfb].boxart+120, 72); // Draw regular loading screen
+			} else {
+				pp2d_draw_rectangle(offset3D[topfb].boxart+120, 72, 160, 120, WHITE);
+			}
+		} else if (subscreenmode == SUBSCREEN_MODE_CHANGE_ROM_PATH) {
+			pp2d_draw_text(offset3D[topfb].disabled+32, 120, 0.55, 0.55, WHITE, "TWLoader will auto-restart if location is changed.");
 		} else {
 			if(showAnniversaryText) pp2d_draw_texture(anniversarytex, 0, 40);
 
@@ -284,12 +292,6 @@ void settingsDrawTopScreen(void)
 			pp2d_draw_texture_blend(settingslogooadertex, offset3D[topfb].boxart+400/2 - 256/2, 240/2 - 128/2, RGBA8(255,255,255,oaderfadealpha));
 
 			if(isDemo) pp2d_draw_texture_blend(settingslogodemotex, offset3D[topfb].boxart+400/2 - 256/2, 240/2 - 128/2, RGBA8(255,255,255,demofadealpha));
-			if (subscreenmode == SUBSCREEN_MODE_NTR) {
-				pp2d_draw_wtext(offset3D[topfb].disabled+72, 174, 0.60, 0.60, BLUE, TR(STR_SETTINGS_XBUTTON_RELEASE));
-				pp2d_draw_wtext(offset3D[topfb].disabled+72, 190, 0.60, 0.60, GREEN, TR(STR_SETTINGS_YBUTTON_UNOFFICIAL));
-			} else if (subscreenmode == SUBSCREEN_MODE_CHANGE_ROM_PATH) {
-				pp2d_draw_text(offset3D[topfb].disabled+32, 192, 0.55, 0.55, WHITE, "TWLoader will auto-restart if location is changed.");
-			}
 		}
 
 		pp2d_draw_text(318, 1, 0.58f, 0.58f, WHITE, RetTime(false).c_str());
@@ -307,18 +309,29 @@ void settingsDrawTopScreen(void)
 			snprintf(nightlyhash, 16, "%s", NIGHTLY);
 			pp2d_draw_text(272, 222, 0.60, 0.60f, WHITE, nightlyhash);			
 		}
+		pp2d_draw_text(5, 194, 0.55f, 0.55f, WHITE, "nds-bootstrap:");
 		if (settings.twl.bootstrapfile == 1) {
 			fat = "sd:/";
+			char text[28];
+			snprintf(text, sizeof(text), "SDK1-4: %s", settings_unofficialbootstrapver.c_str());
+			char text2[28];
+			snprintf(text2, sizeof(text2), "SDK5: %s", settings_SDK5unofficialbootstrapver.c_str());
 			// Green
-			pp2d_draw_text(5, 222, 0.60, 0.60f, GREEN, settings_unofficialbootstrapver.c_str());
+			pp2d_draw_text(5, 208, 0.60, 0.60f, GREEN, text);
+			pp2d_draw_text(5, 222, 0.60, 0.60f, GREEN, text2);
 		} else {
 			fat = "sd:/";
+			char text[28];
+			snprintf(text, sizeof(text), "SDK1-4: %s", settings_releasebootstrapver.c_str());
+			char text2[28];
+			snprintf(text2, sizeof(text2), "SDK5: %s", settings_SDK5releasebootstrapver.c_str());
 			// Blue
-			pp2d_draw_text(5, 222, 0.60, 0.60f, BLUE, settings_releasebootstrapver.c_str());
+			pp2d_draw_text(5, 208, 0.60, 0.60f, BLUE, text);
+			pp2d_draw_text(5, 222, 0.60, 0.60f, BLUE, text2);
 		}
 
 		draw_volume_slider(setvoltex);
-		pp2d_draw_texture(batteryIcon, 371, 2);
+		pp2d_draw_texture_part(batteryIcon, 371, 2, 0, batteryFrame*16, 27, 16);
 		if (!settings.ui.name.empty()) {
 			pp2d_draw_text(34.0f, 1.0f, 0.58, 0.58f, SET_ALPHA(color_data->color, 255), settings.ui.name.c_str());
 		}
@@ -388,8 +401,10 @@ void settingsDrawBottomScreen(void)
 	for (int i = 0; i < 80; i++)
 		pp2d_draw_rectangle(i*4, 26, 2, 1, GRAY);
 	pp2d_draw_rectangle(0, 179, 320, 41, RGBA8(0, 0, 0, 31));
-	for (int i = 0; i < 80; i++)
-		pp2d_draw_rectangle(i*4, 180, 2, 1, GRAY);
+	if(subscreenmode != SUBSCREEN_MODE_FIRST_TIME) {
+		for (int i = 0; i < 80; i++)
+			pp2d_draw_rectangle(i*4, 180, 2, 1, GRAY);
+	}
 	for (int i = 0; i < 80; i++)
 		pp2d_draw_rectangle(i*4, 218, 2, 1, GRAY);
 	
@@ -428,8 +443,8 @@ void settingsDrawBottomScreen(void)
 	const wchar_t *title = L"";
 
 	if (subscreenmode == SUBSCREEN_MODE_FRONTEND) {
-		pp2d_draw_texture(shoulderLtex, 0, LshoulderYpos);
-		pp2d_draw_texture(shoulderRtex, 248, RshoulderYpos);
+		pp2d_draw_texture_part(shouldertex, 0, LshoulderYpos, 0, 0, 72, 20);
+		pp2d_draw_texture_part(shouldertex, 248, RshoulderYpos, 0, 20, 73, 20);
 		pp2d_draw_text(17, LshoulderYpos+4, 0.50, 0.50, BLACK, Lshouldertext);
 		pp2d_draw_text(252, RshoulderYpos+4, 0.50, 0.50, BLACK, Rshouldertext);
 
@@ -614,8 +629,8 @@ void settingsDrawBottomScreen(void)
 			pp2d_draw_wtext(8, 198, 0.60, 0.60f, WHITE, TR(STR_SETTINGS_DESCRIPTION_COUNTER_2));
 		}
 	} else if (subscreenmode == SUBSCREEN_MODE_FRONTEND2) {
-		pp2d_draw_texture(shoulderLtex, 0, LshoulderYpos);
-		pp2d_draw_texture(shoulderRtex, 248, RshoulderYpos);
+		pp2d_draw_texture_part(shouldertex, 0, LshoulderYpos, 0, 0, 72, 20);
+		pp2d_draw_texture_part(shouldertex, 248, RshoulderYpos, 0, 20, 73, 20);
 		pp2d_draw_text(17, LshoulderYpos+4, 0.50, 0.50, BLACK, Lshouldertext);
 		pp2d_draw_text(252, RshoulderYpos+4, 0.50, 0.50, BLACK, Rshouldertext);
 
@@ -733,8 +748,8 @@ void settingsDrawBottomScreen(void)
 			pp2d_draw_wtext(8, 198, 0.60, 0.60f, WHITE, TR(STR_SETTINGS_DESCRIPTION_DS_DSi_SAFETY_MESSAGE_2));
 		}
 	} else if (subscreenmode == SUBSCREEN_MODE_FRONTEND3) {
-		pp2d_draw_texture(shoulderLtex, 0, LshoulderYpos);
-		pp2d_draw_texture(shoulderRtex, 248, RshoulderYpos);
+		pp2d_draw_texture_part(shouldertex, 0, LshoulderYpos, 0, 0, 72, 20);
+		pp2d_draw_texture_part(shouldertex, 248, RshoulderYpos, 0, 20, 73, 20);
 		pp2d_draw_text(17, LshoulderYpos+4, 0.50, 0.50, BLACK, Lshouldertext);
 		pp2d_draw_text(252, RshoulderYpos+4, 0.50, 0.50, BLACK, Rshouldertext);
 
@@ -765,16 +780,19 @@ void settingsDrawBottomScreen(void)
 			{ 17,  39},
 			{169,  39},
 			{ 17,  87},
+			{169,  87},
 		};
 		const wchar_t *button_titles[] = {
 			TR(STR_SETTINGS_SHOW_BOOT_SCREEN),
 			TR(STR_SETTINGS_ROM_PATH),
 			TR(STR_SETTINGS_QUICK_START),
+			utf8_to_wchar("Welcome screen"),
 		};
 		const char *button_desc[] = {
 			showbootscreenvaluetext,
 			printedROMpath,
 			quickstartvaluetext,
+			"",
 		};
 		
 		for (int i = (int)(sizeof(buttons)/sizeof(buttons[0]))-1; i >= 0; i--) {
@@ -821,9 +839,13 @@ void settingsDrawBottomScreen(void)
 			pp2d_draw_wtext(8, 184, 0.60, 0.60f, WHITE, TR(STR_SETTINGS_DESCRIPTION_QUICK_START_1));
 			pp2d_draw_wtext(8, 198, 0.60, 0.60f, WHITE, TR(STR_SETTINGS_DESCRIPTION_QUICK_START_2));
 		}
+		if (cursor_pos[2] == 3) {
+			pp2d_draw_text(8, 184, 0.60, 0.60f, WHITE, "Press  to re-view first-time");
+			pp2d_draw_text(8, 198, 0.60, 0.60f, WHITE, "welcome screen.");
+		}
 	} else if (subscreenmode == SUBSCREEN_MODE_NTR) {
-		pp2d_draw_texture(shoulderLtex, 0, LshoulderYpos);
-		pp2d_draw_texture(shoulderRtex, 248, RshoulderYpos);
+		pp2d_draw_texture_part(shouldertex, 0, LshoulderYpos, 0, 0, 72, 20);
+		pp2d_draw_texture_part(shouldertex, 248, RshoulderYpos, 0, 20, 73, 20);
 		pp2d_draw_text(17, LshoulderYpos+4, 0.50, 0.50, BLACK, Lshouldertext);
 		pp2d_draw_text(252, RshoulderYpos+4, 0.50, 0.50, BLACK, Rshouldertext);
 
@@ -845,7 +867,22 @@ void settingsDrawBottomScreen(void)
 		const char *soundfreqvaluetext = (settings.twl.soundfreq ? "47.61 kHz" : "32.73 kHz");
 		const char *enablesdvaluetext = (settings.twl.enablesd ? "On" : "Off");
 		const char *resetslot1valuetext = (settings.twl.resetslot1 ? "On" : "Off");
-		const char *loadingscreenvaluetext = (settings.twl.loadingscreen ? "On" : "Off");
+		const char *loadingscreenvaluetext;
+		switch (settings.twl.loadingscreen) {
+			case 0:
+			default:
+				loadingscreenvaluetext = "None";
+				break;
+			case 1:
+				loadingscreenvaluetext = "Regular";
+				break;
+			case 2:
+				loadingscreenvaluetext = "Pong";
+				break;
+			case 3:
+				loadingscreenvaluetext = "Tic-Tac-Toe";
+				break;
+		}
 
 		const char *autoupdatevaluetext;
 		switch (settings.ui.autoupdate) {
@@ -1007,7 +1044,7 @@ void settingsDrawBottomScreen(void)
 				"R4 SDHC Upgrade", "SuperCard DSONE", " "},
 			{"Original R4", "M3 Simply", " ", " ", " ", " "},
 			{"R4iDSN", "R4i Gold RTS", "R4 Ultra", " ", " ", " "},
-			{"Acekard 2(i)", "Galaxy Eagle", "M3DS Real", " ", " ", " "},
+			{"Galaxy Eagle", "M3DS Real", " ", " ", " ", " "},
 			{"Acekard RPG", " ", " ", " ", " ", " "},
 			{"Ace 3DS+", "Gateway Blue Card", "R4iTT", " ", " ", " "},
 			{"SuperCard DSTWO", " ", " ", " ", " ", " "},
@@ -1116,6 +1153,13 @@ void settingsDrawBottomScreen(void)
 			} else {
 				pp2d_draw_text(Xpos, Ypos, 0.55, 0.55, WHITE, "theme12");
 			}
+
+			Ypos = 30;
+			if (settings.ui.subtheme == 12) {
+				pp2d_draw_text(Xpos+80, Ypos, 0.55, 0.55, SET_ALPHA(color_data->color, 255), "BlueMoon");
+			} else {
+				pp2d_draw_text(Xpos+80, Ypos, 0.55, 0.55, WHITE, "BlueMoon");
+			}
 		} else if (settings.ui.theme == THEME_AKMENU) {
 			title = TR(STR_SETTINGS_SUBTHEME_WOOD);
 			int Ypos = 40;
@@ -1208,6 +1252,57 @@ void settingsDrawBottomScreen(void)
 				"TWLoader - TWLNAND side (part 2).cia";
 		}
 		pp2d_draw_text(16, 40, 0.4, 0.4, WHITE, twlnand_msg);
+	} else if (subscreenmode == SUBSCREEN_MODE_FIRST_TIME) {
+		if(!isDemo) {
+			const wchar_t *home_text = TR(STR_RETURN_TO_HOME_MENU);
+			const int home_width = 144+16;
+			const int home_x = (320-home_width)/2;
+			pp2d_draw_texture(whomeicontex, home_x, 221); // Draw HOME icon
+			pp2d_draw_wtext(home_x+20, 222, 0.50, 0.50, WHITE, home_text);
+		}
+		if(FirstTime_selectedmsg != 0) pp2d_draw_text(8, 196, 0.50, 0.50, WHITE, ": Previous");
+		if(FirstTime_selectedmsg != 4) pp2d_draw_text(248, 196, 0.50, 0.50, WHITE, ": Next");
+
+		title = L"Welcome to TWLoader!";
+
+		if(FirstTime_selectedmsg == 0) {
+			FirstTime_msg =
+				"TWLoader is a CTR-mode GUI that looks and feels\n"
+				"like the Nintendo DSi Menu.\n"
+				"(The theme can be changed to R4 or akmenu/Wood.)";
+		} else if(FirstTime_selectedmsg == 1) {
+			FirstTime_msg =
+				"It is a frontend for nds-bootstrap, which can\n"
+				"run your ROMs natively from the SD card,\n"
+				"and not through emulation.\n"
+				"\n"
+				"It can also serve as a replacement for flashcard menus.";
+		} else if(FirstTime_selectedmsg == 2) {
+			FirstTime_msg =
+				"TWLoader also includes an enhanced hi-res\n"
+				"3D-depth version of the DS/DSi boot screen.";
+		} else if(FirstTime_selectedmsg == 3) {
+			FirstTime_msg =
+				"You can play your DS games with clock speed of 133mhz\n"
+				"(faster than normal DS), and higher sound quality.\n"
+				"\n"
+				"You can also change the UI color to your favorite color,\n"
+				"and have glowing rainbow colors in the Notification LED.\n"
+				"(Do not use the LED feature on 3DS firmware 8.1\n"
+				"or below.)";
+		} else if(FirstTime_selectedmsg == 4) {
+			FirstTime_msg =
+				"Enjoy using TWLoader to launch your games\n"
+				"from the SD card or a flashcard!\n"
+				"\n"
+				"(Please note that some games are not compatible\n"
+				"from SD card yet. Compatibility is higher for\n"
+				"games on a flashcard.)\n"
+				"\n"
+				"Press  to select a game.\n"
+				"Feel free to change some settings too!";
+		}
+		pp2d_draw_text(16, 40, 0.4, 0.4, WHITE, FirstTime_msg);
 	}
 	pp2d_draw_wtext(2, 2, 0.75, 0.75, WHITE, title);
 }
@@ -1233,7 +1328,26 @@ bool settingsMoveCursor(u32 hDown)
 	// Sound effect to play.
 	sound *sfx = NULL;
 
-	if (subscreenmode == SUBSCREEN_MODE_SUB_THEME) {
+	if (subscreenmode == SUBSCREEN_MODE_FIRST_TIME) {
+		if (hDown & KEY_A) {
+			if(FirstTime_selectedmsg == 4) {
+				titleboxXmovetimer = 1;
+				fadeout = true;
+				sfx = sfx_launch;
+				settings.ui.firstTimeMsgViewed = true;
+			} else {
+				FirstTime_selectedmsg++;
+				sfx = sfx_select;
+			}
+		} else if (hDown & KEY_B) {
+			FirstTime_selectedmsg--;
+			if(FirstTime_selectedmsg < 0) {
+				FirstTime_selectedmsg = 0;
+			} else {
+				sfx = sfx_select;
+			}
+		}
+	} else if (subscreenmode == SUBSCREEN_MODE_SUB_THEME) {
 		if (hDown & KEY_UP) {
 			settings.ui.subtheme--;
 			sfx = sfx_select;
@@ -1248,8 +1362,8 @@ bool settingsMoveCursor(u32 hDown)
 			settings.ui.subtheme = 0;
 		} else if (settings.ui.theme == THEME_R4) {
 			if (settings.ui.subtheme < 0)
-				settings.ui.subtheme = 11;
-			else if (settings.ui.subtheme > 11)
+				settings.ui.subtheme = 12;
+			else if (settings.ui.subtheme > 12)
 				settings.ui.subtheme = 0;
 		} else if (settings.ui.theme == THEME_AKMENU) {
 			if (settings.ui.subtheme < 0)
@@ -1307,7 +1421,17 @@ bool settingsMoveCursor(u32 hDown)
 					settings.twl.resetslot1 = !settings.twl.resetslot1;
 					break;
 				case 6:	// Bootstrap loading screen
-					settings.twl.loadingscreen = !settings.twl.loadingscreen;
+					if (hDown & (KEY_A | KEY_RIGHT)) {
+						settings.twl.loadingscreen++;
+						if (settings.twl.loadingscreen > 3) {
+							settings.twl.loadingscreen = 0;
+						}
+					} else if (hDown & KEY_LEFT) {
+						settings.twl.loadingscreen--;
+						if (settings.twl.loadingscreen < 0) {
+							settings.twl.loadingscreen = 3;
+						}
+					}
 					break;
 				case 7:	// Console output
 					if (hDown & (KEY_A | KEY_RIGHT)) {
@@ -1325,13 +1449,13 @@ bool settingsMoveCursor(u32 hDown)
 				case 8:	// Enable or disable autoupdate
 					if (hDown & (KEY_A | KEY_RIGHT)) {
 						settings.ui.autoupdate++;
-						if (settings.ui.autoupdate > 1) {
+						if (settings.ui.autoupdate > 2) {
 							settings.ui.autoupdate = 0;
 						}
 					} else if (hDown & KEY_LEFT) {
 						settings.ui.autoupdate--;
 						if (settings.ui.autoupdate < 0) {
-							settings.ui.autoupdate = 1;
+							settings.ui.autoupdate = 2;
 						}
 					}
 					break;
@@ -1428,17 +1552,22 @@ bool settingsMoveCursor(u32 hDown)
 						settings.ui.quickStart = !settings.ui.quickStart;
 					}
 					break;
+				case 3: // Welcome screen
+					if (hDown & KEY_A) {
+						subscreenmode = SUBSCREEN_MODE_FIRST_TIME;
+					}
+					break;
 			}
 			sfx = sfx_select;
 		} else if ((hDown & KEY_DOWN) && cursor_pos[2] < 2) {
 			cursor_pos[2] += 2;
-			if (cursor_pos[2] > 2) cursor_pos[2] -= 2;
+			if (cursor_pos[2] > 3) cursor_pos[2] -= 2;
 			sfx = sfx_select;
 		} else if ((hDown & KEY_UP) && cursor_pos[2] > 0) {
 			cursor_pos[2] -= 2;
 			if (cursor_pos[2] < 0) cursor_pos[2] += 2;
 			sfx = sfx_select;
-		} else if ((hDown & KEY_RIGHT) && cursor_pos[2] < 2) {
+		} else if ((hDown & KEY_RIGHT) && cursor_pos[2] < 3) {
 			if (cursor_pos[2] == 0
 			|| cursor_pos[2] == 2
 			|| cursor_pos[2] == 4)
@@ -1507,6 +1636,9 @@ bool settingsMoveCursor(u32 hDown)
 							}
 							DownloadTWLoaderCIAs();
 						}
+					} else {
+						// Wi-Fi is not connected.
+						sfx = sfx_wrong;
 					}
 					break;
 				case 4:	// Boot screen
@@ -1526,7 +1658,7 @@ bool settingsMoveCursor(u32 hDown)
 					settings.ui.healthsafety = !settings.ui.healthsafety;
 					break;
 			}
-			sfx = sfx_select;
+			if (cursor_pos[SUBSCREEN_MODE_FRONTEND2] != 3) sfx = sfx_select;
 		} else if ((hDown & KEY_DOWN) && cursor_pos[1] < 6) {
 			cursor_pos[1] += 2;
 			if (cursor_pos[1] > 5) cursor_pos[1] -= 2;
@@ -1922,6 +2054,8 @@ static void RemoveTrailingSlashes(string& path)
  * Load settings.
  */
 void LoadSettings(void) {
+	settings.ui.firstTimeMsgViewed = settingsini.GetInt("FRONTEND", "FIRST_TIME_MSG_VIEWED", 0);
+
 	// UI settings.
 	settings.ui.name = settingsini.GetString("FRONTEND", "NAME", "");
 	settings.ui.romfolder = settingsini.GetString("FRONTEND", "ROM_FOLDER", "");
@@ -1930,6 +2064,8 @@ void LoadSettings(void) {
 	RemoveTrailingSlashes(settings.ui.fcromfolder);
 	settings.ui.gbromfolder = settingsini.GetString("FRONTEND", "GBROM_FOLDER", "");
 	RemoveTrailingSlashes(settings.ui.gbromfolder);
+	settings.ui.nesromfolder = settingsini.GetString("FRONTEND", "NESROM_FOLDER", "");
+	RemoveTrailingSlashes(settings.ui.nesromfolder);
 	settings.ui.pagenum = settingsini.GetInt("FRONTEND", "PAGE_NUMBER", 0);
 
 	// Customizable UI settings.
@@ -1939,6 +2075,7 @@ void LoadSettings(void) {
 	settings.ui.subtheme = settingsini.GetInt("FRONTEND", "SUB_THEME", 0);
 	settings.ui.color = settingsini.GetInt("FRONTEND", "COLOR", 0);
 	settings.ui.menucolor = settingsini.GetInt("FRONTEND", "MENU_COLOR", 0);
+	settings.ui.woodIconScaleEffect = settingsini.GetInt("FRONTEND", "WOOD_ICONSCALEEFFECT", 1);
 	settings.ui.filename = settingsini.GetInt("FRONTEND", "SHOW_FILENAME", 0);
 	settings.ui.topborder = settingsini.GetInt("FRONTEND", "TOP_BORDER", 1);
 	settings.ui.iconsize = settingsini.GetInt("FRONTEND", "ICON_SIZE", 0);
@@ -1964,7 +2101,7 @@ void LoadSettings(void) {
 	settings.twl.forwarder = settingsini.GetInt("TWL-MODE", "FORWARDER", 0);
 	settings.twl.flashcard = settingsini.GetInt("TWL-MODE", "FLASHCARD", 0);
 	settings.twl.bootstrapfile = settingsini.GetInt("TWL-MODE", "BOOTSTRAP_FILE", 0);
-	if (settings.twl.bootstrapfile > 1) {
+	if (settings.twl.bootstrapfile < 0 || settings.twl.bootstrapfile > 1) {
 		settings.twl.bootstrapfile = 0;
 	}
 
@@ -1991,10 +2128,13 @@ void SaveSettings(void) {
 	bool srldrsettingsFound = false;
 	if (!access(srldrsettingsinipath, F_OK)) srldrsettingsFound = true;
 
+	settingsini.SetInt("FRONTEND", "FIRST_TIME_MSG_VIEWED", settings.ui.firstTimeMsgViewed);
+
 	// UI settings.
 	if (!gbarunnervalue) settingsini.SetString("FRONTEND", "ROM_FOLDER", settings.ui.romfolder);
 	if (!gbarunnervalue) settingsini.SetString("FRONTEND", "FCROM_FOLDER", settings.ui.fcromfolder);
 	settingsini.SetString("FRONTEND", "GBROM_FOLDER", settings.ui.gbromfolder);
+	settingsini.SetString("FRONTEND", "NESROM_FOLDER", settings.ui.nesromfolder);
 	settingsini.SetInt("FRONTEND", "PAGE_NUMBER", settings.ui.pagenum);
 	settingsini.SetInt("FRONTEND", "QUICK_START", settings.ui.quickStart);
 	settingsini.SetInt("FRONTEND", "LANGUAGE", settings.ui.language);
@@ -2002,6 +2142,7 @@ void SaveSettings(void) {
 	settingsini.SetInt("FRONTEND", "SUB_THEME", settings.ui.subtheme);
 	settingsini.SetInt("FRONTEND", "COLOR", settings.ui.color);
 	settingsini.SetInt("FRONTEND", "MENU_COLOR", settings.ui.menucolor);
+	settingsini.SetInt("FRONTEND", "WOOD_ICONSCALEEFFECT", settings.ui.woodIconScaleEffect);
 	settingsini.SetInt("FRONTEND", "SHOW_FILENAME", settings.ui.filename);
 	settingsini.SetInt("FRONTEND", "TOP_BORDER", settings.ui.topborder);
 	settingsini.SetInt("FRONTEND", "ICON_SIZE", settings.ui.iconsize);
@@ -2051,13 +2192,13 @@ void SaveSettings(void) {
 		// Save some settings to SRLoader as well.
 		CIniFile srldrsettingsini( srldrsettingsinipath );
 
-		srldrsettingsini.SetInt("SRLOADER", "IS_3DS", 1);	// In case if older version is used
+		srldrsettingsini.SetInt("SRLOADER", "IS_3DS", 1);
 		srldrsettingsini.SetInt("SRLOADER", "BOOTSTRAP_FILE", settings.twl.bootstrapfile);
 		srldrsettingsini.SetInt("SRLOADER", "ROM_TYPE", settings.twl.romtype);
-		if(settings.ui.theme <= THEME_3DSMENU) {
-			srldrsettingsini.SetInt("SRLOADER", "THEME", 0);
-		} else {
+		if(settings.ui.theme == THEME_3DSMENU) {
 			srldrsettingsini.SetInt("SRLOADER", "THEME", 1);
+		} else {
+			srldrsettingsini.SetInt("SRLOADER", "THEME", 0);
 		}
 		srldrsettingsini.SaveIniFile(srldrsettingsinipath);
 	}

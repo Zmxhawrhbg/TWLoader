@@ -44,6 +44,9 @@ typedef struct _Settings_t {
 		std::string romfolder;
 		std::string fcromfolder;
  		std::string gbromfolder;
+ 		std::string nesromfolder;
+
+		bool firstTimeMsgViewed;
 
 		int pagenum;
 		int cursorPosition;
@@ -53,6 +56,7 @@ typedef struct _Settings_t {
 		int subtheme;
 		int color;
 		int menucolor;
+		bool woodIconScaleEffect;
 		bool filename;
 		bool locswitch;
 		bool topborder;
@@ -93,7 +97,7 @@ typedef struct _Settings_t {
 
 		bool launchslot1;
 		bool resetslot1;
-		bool loadingscreen;
+		int loadingscreen;	// 0 = None, 1 = Regular, 2 = Pong
 		int console;	// 0 = Off, 1 = On, 2 = On (Debug)
 		bool lockarm9scfgext;
 		

@@ -158,15 +158,15 @@ static const char *const lang_FR[STR_MAX] = {
 	"Mise à jour auto. de nds-bootstrap",         		    	// "Auto-update nds-bootstrap at launch."
 	"au démarrage.",                                            // (empty)
 
-	"Choisir le fichier de bootstrap",                 	// "Pick release, unofficial,"
-	"(Release, Unofficial ou Old).",                        // "or old bootstrap."
+	"Choisir le fichier de bootstrap",							// "Pick release or unofficial bootstrap."
+	"(Release ou Unofficial).",									// (empty)
 	 
 	/** Start menu **/
 	// Options
 	"Emplacement jeux",                                         // "Game location"
 	"Box Art: ON",                                              // "Box Art: On"
 	"Box Art: OFF",                                             // "Box Art: OFF"
-	"Start GBARunner2",                                         // "Start GBARunner2"
+	"Select ROM type",											// "Select ROM type"
 	"Bordure haut: ON",                                         // "Top border: On"
 	"Bordure haut: OFF",                                        // "Top border: Off"
 	"Déselct. donor ROM",                                       // "Unset donor rom"
@@ -175,7 +175,10 @@ static const char *const lang_FR[STR_MAX] = {
 	"Carte SD",                                                 // "SD Card"
 	"Linker",                                                   // "Flashcard"
 	"Utilisez le clavier pour rechercher des ROMs",             // "Use the keyboard to find roms"
-	 
+
+	/** Select ROM type **/
+	"Start GBARunner2",											// "Start GBARunner2"
+
 	/** Select menu **/
 	// Options
 	"Fréq. du CPU ARM9",                                      	// "ARM9 CPU Speed"

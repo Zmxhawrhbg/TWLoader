@@ -17,6 +17,8 @@
 #define THEME_R4 2		// R4
 #define THEME_AKMENU 3	// Wood/akMenu
 
+#define gamesPerPage 40
+
 
 extern bool isDemo;	// Is the program running as demo version?
 extern bool run;	// Set to false to exit to the Home Menu.
@@ -39,8 +41,9 @@ extern int LshoulderYpos;
 extern int RshoulderYpos;
 
 // Status bar functions.
-void draw_volume_slider(size_t texarray[]);
-void update_battery_level(size_t texchrg, size_t texarray[]);
+void draw_volume_slider(size_t texnum);
+extern int batteryFrame;
+void update_battery_level(size_t texnum);
 
 extern bool showAnniversaryText;
 
@@ -56,6 +59,8 @@ extern int titleboxXmovetimer; // Set to 1 for fade-in effect to run
 // Settings
 extern std::string settings_releasebootstrapver;
 extern std::string settings_unofficialbootstrapver;
+extern std::string settings_SDK5releasebootstrapver;
+extern std::string settings_SDK5unofficialbootstrapver;
 extern char settings_vertext[13];
 
 extern const u64 TWLNAND_TID;	// TWLNAND title ID.
@@ -81,6 +86,7 @@ extern bool logEnabled;
 
 // Sound effects
 extern bool dspfirmfound;
+extern sound *sfx_launch;
 extern sound *sfx_select;
 extern sound *sfx_switch;
 extern sound *sfx_wrong;

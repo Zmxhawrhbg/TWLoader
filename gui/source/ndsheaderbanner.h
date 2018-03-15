@@ -32,12 +32,26 @@
 #ifndef NDS_HEADER
 #define NDS_HEADER
 
+#include "main.h"
 #include "graphic.h"
 #include "pp2d/pp2d.h"
 #include <stdio.h>
 
 #include <string>
 #include <vector>
+
+typedef struct 
+{
+	u32 auto_load_list_offset;
+	u32 auto_load_list_end;
+	u32 auto_load_start;
+	u32 static_bss_start;
+	u32 static_bss_end;
+	u32 compressed_static_end;
+	u32 sdk_version;
+	u32 nitro_code_be;
+	u32 nitro_code_le;
+} module_params_t;
 
 /*!
 	\brief the GBA file header format.
@@ -238,6 +252,14 @@ std::vector<std::wstring> grabText(FILE* binFile, int bnrtitlenum);
 bool getOverlaySize(FILE* ndsFile, const char* filename, bool isCia);
 
 /**
+ * Get SDK version from an NDS file.
+ * @param ndsFile NDS file.
+ * @param filename NDS ROM filename.
+ * @return 0 on success; non-zero on error.
+ */
+u32 getSDKVersion(FILE* ndsFile, const char* filename);
+
+/**
  * Cache the banner from an NDS file.
  * @param ndsFile NDS file.
  * @param filename NDS ROM filename.
@@ -251,6 +273,13 @@ int cacheBanner(FILE* ndsFile, const char* filename, const char* title, const ch
  * @param binFile NDS banner.
  * @return Icon texture. (NULL on error)
  */
+void* grabIconDSi(const sNDSBanner* ndsBanner, int palnum);
+
+/**
+ * Get the icon from an NDS banner.
+ * @param binFile NDS banner.
+ * @return Icon texture. (NULL on error)
+ */
 void* grabIcon(const sNDSBanner* ndsBanner);
 
 /**
@@ -258,6 +287,51 @@ void* grabIcon(const sNDSBanner* ndsBanner);
  * @param binFile Banner file.
  * @return Icon texture. (NULL on error)
  */
+void* grabIconDSi(FILE* binFile, int palnum);
+
+/**
+ * Get the icon from a cached NDS banner.
+ * @param binFile Banner file.
+ * @return Icon texture. (NULL on error)
+ */
 void* grabIcon(FILE* binFile);
+
+/**
+ * Get banner version from NDS banner.
+ * @param binFile Banner file.
+ * @return Version number. (NULL on error)
+ */
+u16 grabBannerVersion(FILE* binFile);
+
+// bnriconframenum[]: 0-19; 20 is for R4 theme only, 21 is for game cart
+extern int bnriconPalLine[gamesPerPage+2];
+extern int bnriconframenumY[gamesPerPage+2];
+extern flipType bannerFlip[gamesPerPage+2];
+
+// bnriconisDSi[]: 0-19; 20 is for R4 theme only, 21 is for game cart
+extern bool bnriconisDSi[gamesPerPage+2];
+
+/**
+ * Get banner sequence from banner file.
+ * @param binFile Banner file.
+ */
+void* grabBannerSequence(const sNDSBanner* ndsBanner, int iconnum);
+
+/**
+ * Get banner sequence from banner file.
+ * @param binFile Banner file.
+ */
+void* grabBannerSequence(FILE* binFile, int iconnum);
+
+/**
+ * Clear loaded banner sequence.
+ */
+void clearBannerSequence(int iconnum);
+
+/**
+ * Play banner sequence.
+ * @param binFile Banner file.
+ */
+void playBannerSequence(int iconnum);
 
 #endif // NDS_HEADER

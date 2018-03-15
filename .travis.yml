@@ -2,13 +2,14 @@ language: cpp
 os: linux
 dist: trusty
 sudo: required
-group: deprecated-2017Q3
 
 python:
     - "2.7"
-    - "3.5"
+    - "3.6"
 before_install:
-  - wget http://sourceforge.net/projects/devkitpro/files/Automated%20Installer/devkitARMupdate.pl
+  - sudo apt-get update --option Acquire::Retries=100 --option Acquire::http::Timeout="300"
+  - pyenv global system 3.6
+  - wget https://github.com/devkitPro/installer/releases/download/v2.1.0/devkitARMupdate.pl
   - export DEVKITPRO=/home/travis/devkitPro
   - export DEVKITARM=${DEVKITPRO}/devkitARM
 
@@ -25,12 +26,12 @@ install:
   - wget https://raw.githubusercontent.com/Steveice10/buildtools/1ea00aaa369d80a825002e5d514dddff2305f88b/3ds/makerom-linux64
   - chmod 777 makerom-linux64
   - sudo cp makerom-linux64 /usr/bin/makerom
-  - pip3 install requests
-  - pip3 install gitpython
+  - python3.6 -m pip install requests
+  - python3.6 -m pip install gitpython
 script:
   - echo "Starting compilation"
   - echo "Patching Nightly"
-  - python3 Nightlies/patch-nightly.py
+  - python3.6 Nightlies/patch-nightly.py
   - cd twlnand-stage1
   - echo "Compiling TWLoader NAND Side Stage 1 (part 1)"
   - make
@@ -50,7 +51,7 @@ script:
   - cd ..
   - echo "Compiling TWLoader GUI (cia)"
   - cd gui
-  - make -j8 COMPILE_3DSX=0
+  - make -j8 COMPILE_3DSX=0 IS_NIGHTLY=1
   - cd ..
   - echo "Creating release ZIP"
   - mkdir "Nightly"
@@ -72,14 +73,14 @@ script:
   - cd ..
   - echo "Compilation ended"
 after_success:
-  - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then python3 Nightlies/upload-nightly.py; fi'
+  - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then python3.6 Nightlies/upload-nightly.py; fi'
 addons:
   apt:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - gcc-4.9
-    - g++-4.9
+    - gcc-6
+    - g++-6
     - libstdc++6
     - lftp
 env:
